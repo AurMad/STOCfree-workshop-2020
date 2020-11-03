@@ -25,5 +25,5 @@ Feedback we would like to get from participants:
 
 ## Workshop outline
 
-![Workshop outline](./outline.png)
+![Workshop outline](https://github.com/AurMad/STOCfree-workshop-2020/raw/main/outline.png)
 
