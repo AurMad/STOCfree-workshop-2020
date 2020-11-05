@@ -1,0 +1,1104 @@
+<!DOCTYPE html>
+<html lang="" xml:lang="">
+  <head>
+    <title>Using the STOCfree package</title>
+    <meta charset="utf-8" />
+    <meta name="author" content="Aurélien Madouasse" />
+    <meta name="date" content="2020-11-11" />
+    <script src="libs/header-attrs-2.3/header-attrs.js"></script>
+    <link href="libs/remark-css-0.0.1/default.css" rel="stylesheet" />
+    <link href="libs/remark-css-0.0.1/default-fonts.css" rel="stylesheet" />
+  </head>
+  <body>
+    <textarea id="source">
+class: center, middle, inverse, title-slide
+
+# Using the STOCfree package
+### Aurélien Madouasse
+### UMR BIOEPAR, Oniris, INRAE
+### 11/11/2020
+
+---
+
+&lt;style type="text/css"&gt;
+.remark-slide-content {
+    font-size: 25px;
+    padding: 1em 4em 1em 4em;
+}
+&lt;/style&gt;
+
+
+
+
+# Aims of the session
+
+- At the end of the session, participants should:
+ - Be able to use the `STOCfree` package to predict herd level probabilities of infection
+ - Understand the basics of how estimation and prediction are performed
+ - Understand and explore model outputs
+
+ 
+- Feedback we would like from the participants:
+ - Suitability of the model for longitudinal surveillance data
+ - Features that are missing or that need improvement
+ - Any suggestion that could help making the package more useful
+ 
+
+---
+# Programme of the session
+
+1. Introduction to the `STOCfree` package
+
+1. Modelling of herd level data using test results only
+
+1. Modelling of herd level data using test results and a risk factor
+
+1. Modelling of animal level data
+
+---
+class: inverse, center, middle
+
+# The STOCfree package
+
+---
+# The STOCfree package
+
+- `R` + `JAGS` implementation of the STOC free model
+
+- set of functions to build, run and analyse the output gathered in an `R` package
+
+- package hosted and documented on Github
+
+.center[https://github.com/AurMad/STOCfree]
+
+---
+![](./imgs/STOCfree_Github.png)
+---
+# The STOCfree package
+
+- package description and tutorial at the bottom of the page (README)
+
+- R folder: R scripts defining the functions provided in the package
+
+ - `write_JAGS_model.R`: JAGS models
+ 
+ - `STOCfree_data.R`: building of STOCfree_data objects
+ 
+---
+# STOCfree package dependencies
+
+- `JAGS` version 4.3: estimation of model parameters and prediction
+
+.center[https://sourceforge.net/projects/mcmc-jags/files/]
+
+- R packages
+
+ - `rjags`: interfaces R with JAGS
+ - `coda`: processes JAGS output
+ - `dplyr`, `tibble`: data manipulation in R
+ - `tidybayes`: processing of JAGS output using the tidy syntax
+
+---
+# Installing the STOCfree package from Github
+
+- The STOCfree package needs to be installed from Github using the `install_github()` function from the `devtools` package
+ 
+
+```r
+## attaching the devtools package
+library(devtools)
+
+## installing the package
+install_github("AurMad/STOCfree")
+```
+
+---
+# Setting up the R session
+
+- The different packages we will use
+ - STOCfree
+ - tidyverse
+ - ggplot2
+
+
+```r
+library(STOCfree)
+library(tidyverse)
+library(ggplot2)
+```
+
+---
+class: inverse, center, middle
+
+# Modelling herd level data 
+# Test results only
+
+---
+# The herdBTM dataset
+
+- Included in the `STOCfree` package as an example of herd level data
+- Represents herd level bulk tank milk BVDV antibody testing
+- Data collected approximately every 6 months in every herd
+
+
+```r
+head(herdBTM)
+```
+
+```
+## # A tibble: 6 x 6
+##   Farm  DateOfTest   ODR Test    TestResult LocalSeroPrev
+##   &lt;chr&gt; &lt;date&gt;     &lt;dbl&gt; &lt;chr&gt;        &lt;dbl&gt;         &lt;dbl&gt;
+## 1 FR001 2014-02-04  57.6 BTM_ODR          1          0.12
+## 2 FR001 2014-03-01  NA   confirm          1          0.12
+## 3 FR001 2014-09-10  66.5 BTM_ODR          1          0.1 
+## 4 FR001 2014-10-01  NA   confirm          1          0.1 
+## 5 FR001 2015-02-01  52.5 BTM_ODR          1          0.08
+## 6 FR001 2015-03-01  NA   confirm          1          0.08
+```
+
+---
+# The herdBTM dataset
+
+- The different columns are:
+ - **`Farm`**: farm ID
+ - **`DateOfTest`**: date of test
+ - **`ODR`**: test result as a continuous value (optical density ratio)
+ - **`Test`**: test used. Either `BTM_ODR` for optical density ratio on bulk tank milk, or `confirm` for confirmatory testing
+ - **`TestResult`**: ODR value categorised as negative (ODR &lt; 35) or positive (ODR `\(\geq\)` 35)
+ - **`LocalSeroPrev`**: local seroprevalence, i.e. prevalence of test positive in the neighbourhood
+
+---
+# The herdBTM dataset
+
+- We will only use results from `BTM_ODR` tests and store the resulting object in a variable called `bvd`
+
+
+```r
+bvd &lt;- herdBTM %&gt;% 
+  filter(Test == 'BTM_ODR') %&gt;% 
+  select(Farm, DateOfTest, ODR, TestResult)
+```
+
+---
+# Steps of the analysis
+
+1. Build a STOCfree_data object from surveillance data
+
+1. Define prior distributions for test characteristics
+
+1. Define prior distributions for status dynamics
+
+1. Compile the model
+
+1. Sample from the model
+
+1. Process and analyse model output
+
+---
+# Building a STOCfree_data object
+
+- Type `?STOCfree_data` to see the function's help page
+
+- We will first run the model using test results only
+
+- Using the `bvd` dataset:
+
+
+```r
+sfd &lt;- STOCfree_data(
+  test_data = bvd,
+  test_herd_col = "Farm",
+  test_date_col = "DateOfTest",
+  test_res_col = "TestResult",
+  test_level = "herd")
+```
+
+---
+# STOCfree_data objects' structure
+
+
+```r
+str(sfd, max.level = 1)
+```
+
+```
+## List of 8
+##  $ var_names       : Named chr [1:3] "Farm" "DateOfTest" "TestResult"
+##   ..- attr(*, "names")= chr [1:3] "test_herd_col" "test_date_col" "test_res_col"
+##  $ herd_id_corresp :'data.frame':	100 obs. of  2 variables:
+##  $ test_data       :'data.frame':	680 obs. of  6 variables:
+##  $ herd_test_data  :'data.frame':	100 obs. of  3 variables:
+##  $ test_perf_prior :'data.frame':	1 obs. of  6 variables:
+##  $ risk_factors    :'data.frame':	1 obs. of  3 variables:
+##  $ risk_factor_data:'data.frame':	3300 obs. of  4 variables:
+##  $ inf_dyn_priors  : Named logi [1:6] NA NA NA NA NA NA
+##   ..- attr(*, "names")= chr [1:6] "pi1_a" "pi1_b" "tau1_a" "tau1_b" ...
+##  - attr(*, "level")= chr "herd"
+##  - attr(*, "number of herds")= int 100
+##  - attr(*, "number of tests")= num 1
+##  - attr(*, "month first test")= chr "2014-02"
+##  - attr(*, "month last test")= chr "2016-10"
+##  - attr(*, "number of risk factors")= num 0
+##  - attr(*, "class")= chr [1:2] "herd" "STOCfree_data"
+```
+
+---
+# STOCfree_data objects' structure
+
+- Column names correspondence between STOCfree_data objects and original dataset
+
+
+```r
+sfd$var_names
+```
+
+```
+## test_herd_col test_date_col  test_res_col 
+##        "Farm"  "DateOfTest"  "TestResult"
+```
+
+---
+# STOCfree_data objects' structure
+
+- Herds numbered from 1 to number of herds
+
+- Correspondence between original herd id and herd id used by the model stored in the `STOCfree_data` object
+
+
+```r
+sfd$herd_id_corresp
+```
+
+
+```
+##     Farm herd_id
+## 1  FR001       1
+## 2  FR002       2
+## 3  FR003       3
+## 4  FR004       4
+## 5  FR005       5
+## 6  FR006       6
+## 7  FR007       7
+## 8  FR008       8
+## 9  FR009       9
+## 10 FR010      10
+```
+
+---
+# STOCfree_data objects' structure
+
+- Test data:
+
+
+```r
+sfd$herd_test_data
+```
+
+
+```
+##    status_id herd_id month_id status_type test_id test_res
+## 1          1       1        1           1       1        1
+## 2          8       1        8           2       1        1
+## 3         13       1       13           2       1        1
+## 4         20       1       20           2       1        1
+## 5         25       1       25           2       1        1
+## 6         32       1       32           2       1        0
+## 7         33       1       33           4      NA       NA
+## 8         34       2        1           1       1        0
+## 9         41       2        8           2       1        0
+## 10        46       2       13           2       1        0
+```
+
+ - Can you guess what the different columns correspond to?
+
+---
+# STOCfree_data objects' structure
+
+- Check the original data:
+
+
+```r
+## for herd_id i, Farm is
+i &lt;- 1
+herd_id_i &lt;- sfd$herd_id_corresp$Farm[sfd$herd_id_corresp$herd_id == i]
+
+## extracting herd data
+bvd %&gt;% 
+  filter(Farm == herd_id_i) %&gt;% 
+  View()
+```
+
+---
+# STOCfree_data objects' structure
+
+- herd_test_data
+ - Contains index (`status_id`) of first and last test for each month
+
+
+```r
+sfd$herd_test_data
+```
+
+
+```
+##    herd_id ind_i ind_p
+## 1        1     1    33
+## 2        2    34    66
+## 3        3    67    99
+## 4        4   100   132
+## 5        5   133   165
+## 6        6   166   198
+## 7        7   199   231
+## 8        8   232   264
+## 9        9   265   297
+## 10      10   298   330
+```
+
+---
+# STOCfree_data objects' structure
+
+- Prior distributions for test characteristics
+ - Beta distributions
+ - Need to specify `\(\alpha\)` and `\(\beta\)` parameters for sensitivity and specificity
+
+
+```r
+sfd$test_perf_prior
+```
+
+```
+##         test test_id Se_a Se_b Sp_a Sp_b
+## 1 TestResult       1   NA   NA   NA   NA
+```
+
+- Here, 1 row because only 1 test present in the dataset
+
+- What would be good priors for our test?
+
+---
+# Visualising Beta distributions
+
+- `betadistapp` package
+ - shiny app
+ - displays `\(\alpha\)` and `\(\beta\)` for Beta distributions plotted using sliding scales for mean and sd
+ - plots Beta distributions using `\(\alpha\)` and `\(\beta\)` as inputs
+
+- install the package
+
+```r
+devtools::install_github("AurMad/betadistapp")
+```
+ 
+- run the app
+ 
+
+```r
+betadistapp::shiny_beta()
+```
+
+---
+# Prior distributions for test characteristics
+
+- Prior distributions specified using the `set_priors_tests()` function
+
+
+```r
+sfd &lt;- set_priors_tests(sfd,
+                 Se_a = 5000,
+                 Se_b = 260,
+                 Sp_a = 20,
+                 Sp_b = 2)
+```
+
+---
+# Prior distributions for test characteristics
+
+- Check that the `STOCfree_data` object has been updated
+
+
+```r
+show_tests(sfd)
+```
+
+```
+##         test test_id Se_a Se_b Sp_a Sp_b
+## 1 TestResult       1 5000  260   20    2
+```
+
+---
+# Prior distributions for test characteristics
+
+- Plot the prior distributions for test characteristics
+
+
+```r
+plot_priors_tests(sfd)
+```
+
+![](using_STOCfree_package_files/figure-html/plot test characteristics-1.png)&lt;!-- --&gt;
+
+---
+# Prior distributions for infection dynamics
+
+- We need prior Beta distributions for:
+ - probability of infection on the first test ( `\(\pi_1\)` )
+ - probability of new infection between consecutive months ( `\(\tau_1\)` )
+ - probability of not eliminating the infection between consecutive months ( `\(\tau_2\)` )
+ 
+
+```r
+sfd$inf_dyn_priors
+```
+
+```
+##  pi1_a  pi1_b tau1_a tau1_b tau2_a tau2_b 
+##     NA     NA     NA     NA     NA     NA
+```
+
+---
+# Prior distributions for infection dynamics
+
+- Prior distributions are set using the `set_priors_inf_dyn`
+
+
+```r
+sfd &lt;- set_priors_inf_dyn(sfd,
+                   pi1_a = 1,
+                   pi1_b = 1,
+                   tau1_a = 1.5, 
+                   tau1_b = 10,
+                   tau2_a = 10, 
+                   tau2_b = 1.5)
+```
+ 
+---
+# Prior distributions for infection dynamics
+
+- Parameters of the prior distributions can be checked with the `show_inf_dyn()` function
+
+
+```r
+show_inf_dyn(sfd)
+```
+
+```
+##  pi1_a  pi1_b tau1_a tau1_b tau2_a tau2_b 
+##    1.0    1.0    1.5   10.0   10.0    1.5
+```
+
+---
+# Prior distributions for infection dynamics
+
+- Prior distributions are plotted with the `plot_priors_inf_dyn()` function
+
+
+```r
+plot_priors_inf_dyn(sfd)
+```
+
+![](using_STOCfree_package_files/figure-html/plot infection dynamics priors-1.png)&lt;!-- --&gt;
+
+---
+# Model compilation
+
+- Using the `compile_JAGS()` function:
+
+
+```r
+compiled_model &lt;- compile_JAGS(sfd, 
+                               n_chains = 4, 
+                               keep_model_file = TRUE)
+```
+
+```
+## Compiling model graph
+##    Resolving undeclared variables
+##    Allocating nodes
+## Graph information:
+##    Observed stochastic nodes: 580
+##    Unobserved stochastic nodes: 3404
+##    Total graph size: 22636
+## 
+## Initializing model
+```
+
+---
+# Model compilation
+
+- The function sends our model, data and priors to JAGS
+
+- The model corresponding to our specifications is written into a text file that will be used by JAGS:
+ - herd level
+ - no risk factor
+ - stored in a file called `JAGS_model.txt` in your working directory (because we used the argument `keep_model_file = TRUE`)
+
+---
+# Model sampling
+
+- The aims are to obtain:
+ - samples from the posterior distributions of the model parameters
+ - distributions of predicted probabilities of infection for each herd in the data
+
+
+```r
+samples &lt;- sample_model(compiled_model, 
+                        n_burnin = 5000, 
+                        n_iter = 5000, 
+                        n_thin = 20)
+```
+
+```
+## Burnin (5000 iterations)
+```
+
+```
+## Sampling (5000 iterations)
+```
+
+---
+# Model outputs
+
+- The output consists of 3 parts:
+ - `parameters`: model parameters (Se, Sp, `\(\ldots\)` )
+ - `proba_inf`: herd level predicted probabilities of infection
+ - `Gelman_diag`: results of Gelman-Rubin convergence diagnostics performed on model parameters
+
+
+```r
+str(samples, max.level = 1)
+```
+
+```
+## List of 3
+##  $ parameters : tibble [1,000 x 7] (S3: tbl_df/tbl/data.frame)
+##  $ proba_inf  : tibble [100,000 x 6] (S3: grouped_df/tbl_df/tbl/data.frame)
+##   ..- attr(*, "groups")= tibble [100 x 2] (S3: tbl_df/tbl/data.frame)
+##   .. ..- attr(*, ".drop")= logi TRUE
+##  $ Gelman_diag: num [1:4, 1:2] 1 1.03 1.05 1.06 1.02 ...
+##   ..- attr(*, "dimnames")=List of 2
+```
+
+---
+# Model outputs
+
+- Model outputs should be saved on the disk
+ - You usually do not want to re-run several hours of analysis !
+
+- We store the 3 components of the JAGS output 
+ - as 3 csv files
+ - in a folder called model_output
+
+
+
+
+```r
+write.csv(samples$parameters, "model_output/param.csv", row.names = FALSE)
+write.csv(samples$proba_inf, "model_output/proba_inf.csv", row.names = FALSE)
+write.csv(samples$Gelman_diag, "model_output/Gelman_diag.csv", row.names = FALSE)
+```
+
+---
+# Convergence diagnostics
+
+- Gelman-Rubin diagnostics
+ - computed using the `gelman.diag()` function from the `coda` package
+ - should be close to 1
+
+
+```r
+Gelman_diag &lt;- read.csv("model_output/Gelman_diag.csv")
+
+Gelman_diag
+```
+
+```
+##   Point.est. Upper.C.I.
+## 1   1.004834   1.017531
+## 2   1.028507   1.085804
+## 3   1.046230   1.138952
+## 4   1.063557   1.184021
+```
+
+---
+# Model parameters
+
+- Samples from the posterior distributions of the different model parameters
+
+
+```r
+param &lt;- as_tibble(read.csv("model_output/param.csv"))
+
+head(param)
+```
+
+```
+## # A tibble: 6 x 7
+##   .chain .iteration .draw    Se    Sp   tau1  tau2
+##    &lt;int&gt;      &lt;int&gt; &lt;int&gt; &lt;dbl&gt; &lt;dbl&gt;  &lt;dbl&gt; &lt;dbl&gt;
+## 1      1          1     1 0.945 0.917 0.0232 0.972
+## 2      1          2     2 0.951 0.902 0.0151 0.974
+## 3      1          3     3 0.950 0.937 0.0195 0.982
+## 4      1          4     4 0.951 0.910 0.0141 0.981
+## 5      1          5     5 0.952 0.913 0.0220 0.983
+## 6      1          6     6 0.946 0.929 0.0199 0.977
+```
+
+---
+# Model parameters
+
+- Convergence can be evaluated using traceplots
+
+
+```r
+ggplot(param, aes(x = .iteration, y = Se, col = factor(.chain))) +
+  geom_line()
+```
+
+![](using_STOCfree_package_files/figure-html/parameter traceplots-1.png)&lt;!-- --&gt;
+
+---
+# Model parameters
+
+- Densities can be visualised
+
+
+```r
+ggplot(param, aes(x = Se, colour = "Posterior")) +
+  stat_density(geom = "line") + 
+  geom_function(fun = dbeta, args = list(5000, 260), aes(colour = "Prior")) +
+  scale_colour_discrete(name  ="")
+```
+
+![](using_STOCfree_package_files/figure-html/posterior parameter density-1.png)&lt;!-- --&gt;
+
+---
+# Model parameters
+
+- Summaries for all model parameters:
+
+
+```r
+param_summary(x = param)
+```
+
+```
+##   parameter   50 %  2.5 % 97.5 %
+## 1        Se 0.9499 0.9441 0.9556
+## 2        Sp 0.8817 0.8242 0.9410
+## 3      tau1 0.0168 0.0073 0.0312
+## 4      tau2 0.9837 0.9678 0.9946
+```
+
+
+---
+# Predicted probabilities of infection
+
+- Samples from the predicted probabilities of infection for the different herds
+
+
+```r
+pinf &lt;- as_tibble(read.csv("model_output/proba_inf.csv"))
+
+head(pinf)
+```
+
+```
+## # A tibble: 6 x 6
+##   herd_id predicted_proba .chain .iteration .draw predicted_status
+##     &lt;int&gt;           &lt;dbl&gt;  &lt;int&gt;      &lt;int&gt; &lt;int&gt;            &lt;int&gt;
+## 1       1          0.972       1          1     1                1
+## 2       1          0.0151      1          2     2                0
+## 3       1          0.982       1          3     3                1
+## 4       1          0.0141      1          4     4                0
+## 5       1          0.0220      1          5     5                0
+## 6       1          0.977       1          6     6                1
+```
+
+---
+# Predicted probabilities of infection
+
+- Density for the overall probability of infection
+
+
+```r
+ggplot(pinf, aes(x = predicted_proba)) +
+  geom_density()
+```
+
+![](using_STOCfree_package_files/figure-html/plotting overall predicted probabilities of infection-1.png)&lt;!-- --&gt;
+
+---
+# Predicted probabilities of infection
+
+- Density for every herd
+
+
+```r
+ggplot(pinf, aes(x = predicted_proba, col = factor(herd_id))) +
+  geom_density() + 
+  theme(legend.position = "none")
+```
+
+![](using_STOCfree_package_files/figure-html/plotting predicted probabilities of infection for each herd individually-1.png)&lt;!-- --&gt;
+
+---
+# Predicted probabilities of infection
+
+- Density for specific herds
+ - herd 29: negative test results only
+
+
+```r
+sfd$test_data %&gt;% 
+  filter(herd_id == 29)
+```
+
+```
+##   status_id herd_id month_id status_type test_id test_res
+## 1       925      29        1           1       1        0
+## 2       932      29        8           2       1        0
+## 3       937      29       13           2       1        0
+## 4       944      29       20           2       1        0
+## 5       949      29       25           2       1        0
+## 6       956      29       32           2       1        0
+## 7       957      29       33           4      NA       NA
+```
+
+---
+# Predicted probabilities of infection
+
+- Density for specific herds
+ - herd 29: negative test results only
+
+
+```r
+pinf %&gt;% 
+  filter(herd_id == 29) %&gt;% 
+  ggplot(., aes(x = predicted_proba, col = factor(herd_id))) +
+  geom_density()
+```
+
+![](using_STOCfree_package_files/figure-html/plotting predicted probabilities of infection for herd 29-1.png)&lt;!-- --&gt;
+
+---
+# Predicted probabilities of infection
+
+- Density for specific herds
+ - herd 30: positive test results only
+
+
+```r
+sfd$test_data %&gt;% 
+  filter(herd_id == 30)
+```
+
+```
+##   status_id herd_id month_id status_type test_id test_res
+## 1       958      30        1           1       1        1
+## 2       965      30        8           2       1        1
+## 3       970      30       13           2       1        1
+## 4       977      30       20           2       1        1
+## 5       982      30       25           2       1        1
+## 6       989      30       32           2       1        1
+## 7       990      30       33           4      NA       NA
+```
+
+---
+# Predicted probabilities of infection
+
+- Density for specific herds
+ - herd 30: positive test results only
+
+
+```r
+pinf %&gt;% 
+  filter(herd_id == 30) %&gt;% 
+  ggplot(., aes(x = predicted_proba, col = factor(herd_id))) +
+  geom_density()
+```
+
+![](using_STOCfree_package_files/figure-html/plotting predicted probabilities of infection for herd 30-1.png)&lt;!-- --&gt;
+
+---
+# Predicted probabilities of infection
+
+- Density for specific herds
+ - herd 68: negative and positive test results
+
+
+```r
+sfd$test_data %&gt;% 
+  filter(herd_id == 68)
+```
+
+```
+##   status_id herd_id month_id status_type test_id test_res
+## 1      2212      68        1           1       1        0
+## 2      2219      68        8           2       1        0
+## 3      2224      68       13           2       1        0
+## 4      2231      68       20           2       1        1
+## 5      2236      68       25           2       1        1
+## 6      2243      68       32           2       1        0
+## 7      2244      68       33           4      NA       NA
+```
+
+---
+# Predicted probabilities of infection
+
+- Density for specific herds
+ - herd 68: negative and positive test results
+
+
+```r
+pinf %&gt;% 
+  filter(herd_id == 68) %&gt;% 
+  ggplot(., aes(x = predicted_proba, col = factor(herd_id))) +
+  geom_density()
+```
+
+![](using_STOCfree_package_files/figure-html/plotting predicted probabilities of infection for herd 68-1.png)&lt;!-- --&gt;
+
+---
+# Predicted probabilities of infection
+
+- Density for specific herds
+ - herd 68: negative and positive test results
+
+## Explaining bi-modality:
+- herd tested negative on month 32
+- latent status on month 32
+ - on some iterations, latent status sampled as negative `\(\rightarrow\)` predicted probability of infection on month 33 is `\(\tau_1\)`
+ - on some iterations, latent status sampled as positive `\(\rightarrow\)` predicted probability of infection on month 33 is `\(\tau_2\)`
+ 
+---
+# Predicted probabilities of infection
+
+- Density for specific herds
+ - herd 83: latest test results is positive
+
+
+```r
+sfd$test_data %&gt;% 
+  filter(herd_id == 83)
+```
+
+```
+##   status_id herd_id month_id status_type test_id test_res
+## 1      2707      83        1           1       1        0
+## 2      2714      83        8           2       1        0
+## 3      2719      83       13           2       1        0
+## 4      2726      83       20           2       1        0
+## 5      2731      83       25           2       1        0
+## 6      2738      83       32           2       1        1
+## 7      2739      83       33           4      NA       NA
+```
+
+---
+# Predicted probabilities of infection
+
+- Density for specific herds
+ - herd 83: latest test results is positive
+
+
+```r
+pinf %&gt;% 
+  filter(herd_id == 83) %&gt;% 
+  ggplot(., aes(x = predicted_proba, col = factor(herd_id))) +
+  geom_density()
+```
+
+![](using_STOCfree_package_files/figure-html/plotting predicted probabilities of infection for herd 83-1.png)&lt;!-- --&gt;
+
+---
+# Predicted probabilities of infection
+
+- Density for specific herds
+ - herds 29, 30, 68 and 83
+
+
+```r
+pinf %&gt;% 
+  filter(herd_id %in% c(29, 30, 68, 83)) %&gt;% 
+  ggplot(., aes(x = predicted_proba, col = factor(herd_id))) +
+  geom_density()
+```
+
+![](using_STOCfree_package_files/figure-html/plotting predicted probabilities of infection for 4 herds-1.png)&lt;!-- --&gt;
+
+---
+# Categorisation of herds into status negative / positive
+
+- Need to get from a probability distribution to negative / positive for each herd
+
+- Solution currently explored:
+ - summarise each herd probability distribution with a quantile (e.g. median)
+ - set a threshold below which herds are categorised as negative and above which they are positive
+ - implemented in the `herd_summary()` function
+
+---
+# Categorisation of herds into status negative / positive
+
+
+```r
+hrd_prob &lt;- herd_summary(pinf, sfd, 
+                         quantile = 0.5, cut_off = 0.5)
+
+head(hrd_prob)
+```
+
+```
+##    Farm      proba predicted_status
+## 1 FR001 0.02121965                0
+## 2 FR002 0.12857430                0
+## 3 FR003 0.01678969                0
+## 4 FR004 0.98349402                1
+## 5 FR005 0.98350859                1
+## 6 FR006 0.98333424                1
+```
+ 
+---
+class: inverse, center, middle
+
+# Modelling herd level data 
+# Test results and risk factors
+
+---
+# To do
+
+---
+class: inverse, center, middle
+
+# Modelling animal level data 
+
+---
+# To do
+
+---
+background-image: url(./imgs/STOCfree_meeting_2020.png)
+background-size: contain
+
+
+    </textarea>
+<style data-target="print-only">@media screen {.remark-slide-container{display:block;}.remark-slide-scaler{box-shadow:none;}}</style>
+<script src="https://remarkjs.com/downloads/remark-latest.min.js"></script>
+<script>var slideshow = remark.create({
+"highlightStyle": "github",
+"highlightLines": true,
+"countIncrementalSlides": false
+});
+if (window.HTMLWidgets) slideshow.on('afterShowSlide', function (slide) {
+  window.dispatchEvent(new Event('resize'));
+});
+(function(d) {
+  var s = d.createElement("style"), r = d.querySelector(".remark-slide-scaler");
+  if (!r) return;
+  s.type = "text/css"; s.innerHTML = "@page {size: " + r.style.width + " " + r.style.height +"; }";
+  d.head.appendChild(s);
+})(document);
+
+(function(d) {
+  var el = d.getElementsByClassName("remark-slides-area");
+  if (!el) return;
+  var slide, slides = slideshow.getSlides(), els = el[0].children;
+  for (var i = 1; i < slides.length; i++) {
+    slide = slides[i];
+    if (slide.properties.continued === "true" || slide.properties.count === "false") {
+      els[i - 1].className += ' has-continuation';
+    }
+  }
+  var s = d.createElement("style");
+  s.type = "text/css"; s.innerHTML = "@media print { .has-continuation { display: none; } }";
+  d.head.appendChild(s);
+})(document);
+// delete the temporary CSS (for displaying all slides initially) when the user
+// starts to view slides
+(function() {
+  var deleted = false;
+  slideshow.on('beforeShowSlide', function(slide) {
+    if (deleted) return;
+    var sheets = document.styleSheets, node;
+    for (var i = 0; i < sheets.length; i++) {
+      node = sheets[i].ownerNode;
+      if (node.dataset["target"] !== "print-only") continue;
+      node.parentNode.removeChild(node);
+    }
+    deleted = true;
+  });
+})();
+(function() {
+  "use strict"
+  // Replace <script> tags in slides area to make them executable
+  var scripts = document.querySelectorAll(
+    '.remark-slides-area .remark-slide-container script'
+  );
+  if (!scripts.length) return;
+  for (var i = 0; i < scripts.length; i++) {
+    var s = document.createElement('script');
+    var code = document.createTextNode(scripts[i].textContent);
+    s.appendChild(code);
+    var scriptAttrs = scripts[i].attributes;
+    for (var j = 0; j < scriptAttrs.length; j++) {
+      s.setAttribute(scriptAttrs[j].name, scriptAttrs[j].value);
+    }
+    scripts[i].parentElement.replaceChild(s, scripts[i]);
+  }
+})();
+(function() {
+  var links = document.getElementsByTagName('a');
+  for (var i = 0; i < links.length; i++) {
+    if (/^(https?:)?\/\//.test(links[i].getAttribute('href'))) {
+      links[i].target = '_blank';
+    }
+  }
+})();
+// adds .remark-code-has-line-highlighted class to <pre> parent elements
+// of code chunks containing highlighted lines with class .remark-code-line-highlighted
+(function(d) {
+  const hlines = d.querySelectorAll('.remark-code-line-highlighted');
+  const preParents = [];
+  const findPreParent = function(line, p = 0) {
+    if (p > 1) return null; // traverse up no further than grandparent
+    const el = line.parentElement;
+    return el.tagName === "PRE" ? el : findPreParent(el, ++p);
+  };
+
+  for (let line of hlines) {
+    let pre = findPreParent(line);
+    if (pre && !preParents.includes(pre)) preParents.push(pre);
+  }
+  preParents.forEach(p => p.classList.add("remark-code-has-line-highlighted"));
+})(document);</script>
+
+<script>
+slideshow._releaseMath = function(el) {
+  var i, text, code, codes = el.getElementsByTagName('code');
+  for (i = 0; i < codes.length;) {
+    code = codes[i];
+    if (code.parentNode.tagName !== 'PRE' && code.childElementCount === 0) {
+      text = code.textContent;
+      if (/^\\\((.|\s)+\\\)$/.test(text) || /^\\\[(.|\s)+\\\]$/.test(text) ||
+          /^\$\$(.|\s)+\$\$$/.test(text) ||
+          /^\\begin\{([^}]+)\}(.|\s)+\\end\{[^}]+\}$/.test(text)) {
+        code.outerHTML = code.innerHTML;  // remove <code></code>
+        continue;
+      }
+    }
+    i++;
+  }
+};
+slideshow._releaseMath(document);
+</script>
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+(function () {
+  var script = document.createElement('script');
+  script.type = 'text/javascript';
+  script.src  = 'https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-MML-AM_CHTML';
+  if (location.protocol !== 'file:' && /^https?:/.test(script.src))
+    script.src  = script.src.replace(/^https?:/, '');
+  document.getElementsByTagName('head')[0].appendChild(script);
+})();
+</script>
+  </body>
+</html>
