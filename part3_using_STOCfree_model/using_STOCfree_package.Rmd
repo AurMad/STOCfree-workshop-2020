@@ -6,19 +6,13 @@ institute: "UMR BIOEPAR, Oniris, INRAE"
 date: "11/11/2020"
 output:
   xaringan::moon_reader:
+    css: ["default", "extra.css"]
     lib_dir: libs
-    self_contained: TRUE
     nature:
       highlightStyle: github
       highlightLines: true
       countIncrementalSlides: false
 ---
-<style type="text/css">
-.remark-slide-content {
-    font-size: 25px;
-    padding: 1em 4em 1em 4em;
-}
-</style>
 
 
 ```{r, include = FALSE}
@@ -76,9 +70,9 @@ class: inverse, center, middle
 - R folder: R scripts defining the functions provided in the package
 
  - `write_JAGS_model.R`: JAGS models
- 
+
  - `STOCfree_data.R`: building of STOCfree_data objects
- 
+
 ---
 # STOCfree package dependencies
 
@@ -97,7 +91,7 @@ class: inverse, center, middle
 # Installing the STOCfree package from Github
 
 - The STOCfree package needs to be installed from Github using the `install_github()` function from the `devtools` package
- 
+
 ```{r installing the STOCfree package, eval = FALSE}
 ## attaching the devtools package
 library(devtools)
@@ -123,7 +117,7 @@ library(ggplot2)
 ---
 class: inverse, center, middle
 
-# Modelling herd level data 
+# Modelling herd level data
 # Test results only
 
 ---
@@ -153,16 +147,16 @@ head(herdBTM)
 
 - We will only use results from `BTM_ODR` tests and store the resulting object in a variable called `bvd`
 
-```{r}
-bvd <- herdBTM %>% 
-  filter(Test == 'BTM_ODR') %>% 
-  select(Farm, DateOfTest, ODR, TestResult)
+```{r creation of bvd dataset}
+bvd <- herdBTM %>%
+  filter(Test == 'BTM_ODR') %>%
+  select(Farm, DateOfTest, ODR, TestResult, LocalSeroPrev)
 ```
 
 ---
 # Steps of the analysis
 
-1. Build a STOCfree_data object from surveillance data
+1. Build a `STOCfree_data` object from surveillance data
 
 1. Define prior distributions for test characteristics
 
@@ -249,8 +243,8 @@ i <- 1
 herd_id_i <- sfd$herd_id_corresp$Farm[sfd$herd_id_corresp$herd_id == i]
 
 ## extracting herd data
-bvd %>% 
-  filter(Farm == herd_id_i) %>% 
+bvd %>%
+  filter(Farm == herd_id_i) %>%
   View()
 ```
 
@@ -295,9 +289,9 @@ sfd$test_perf_prior
 ```{r install betadistapp, eval = FALSE}
 devtools::install_github("AurMad/betadistapp")
 ```
- 
+
 - run the app
- 
+
 ```{r run shiny_beta, eval = FALSE}
 betadistapp::shiny_beta()
 ```
@@ -340,7 +334,7 @@ plot_priors_tests(sfd)
  - probability of infection on the first test ( $\pi_1$ )
  - probability of new infection between consecutive months ( $\tau_1$ )
  - probability of not eliminating the infection between consecutive months ( $\tau_2$ )
- 
+
 ```{r infection dynamics priors}
 sfd$inf_dyn_priors
 ```
@@ -354,12 +348,12 @@ sfd$inf_dyn_priors
 sfd <- set_priors_inf_dyn(sfd,
                    pi1_a = 1,
                    pi1_b = 1,
-                   tau1_a = 1.5, 
+                   tau1_a = 1.5,
                    tau1_b = 10,
-                   tau2_a = 10, 
+                   tau2_a = 10,
                    tau2_b = 1.5)
 ```
- 
+
 ---
 # Prior distributions for infection dynamics
 
@@ -383,9 +377,9 @@ plot_priors_inf_dyn(sfd)
 
 - Using the `compile_JAGS()` function:
 
-```{r JAGS model compilation}
-compiled_model <- compile_JAGS(sfd, 
-                               n_chains = 4, 
+```{r JAGS model compilation, eval = FALSE}
+compiled_model <- compile_JAGS(sfd,
+                               n_chains = 4,
                                keep_model_file = TRUE)
 ```
 
@@ -406,10 +400,10 @@ compiled_model <- compile_JAGS(sfd,
  - samples from the posterior distributions of the model parameters
  - distributions of predicted probabilities of infection for each herd in the data
 
-```{r}
-samples <- sample_model(compiled_model, 
-                        n_burnin = 5000, 
-                        n_iter = 5000, 
+```{r sampling from JAGS model, eval = FALSE}
+samples <- sample_model(compiled_model,
+                        n_burnin = 5000,
+                        n_iter = 5000,
                         n_thin = 20)
 ```
 
@@ -421,7 +415,7 @@ samples <- sample_model(compiled_model,
  - `proba_inf`: herd level predicted probabilities of infection
  - `Gelman_diag`: results of Gelman-Rubin convergence diagnostics performed on model parameters
 
-```{r}
+```{r, eval = FALSE}
 str(samples, max.level = 1)
 ```
 
@@ -431,15 +425,15 @@ str(samples, max.level = 1)
 - Model outputs should be saved on the disk
  - You usually do not want to re-run several hours of analysis !
 
-- We store the 3 components of the JAGS output 
+- We store the 3 components of the JAGS output
  - as 3 csv files
  - in a folder called model_output
 
-```{r creates folder to store model output if not present, include = FALSE}
+```{r creates folder to store model output if not present, eval = FALSE, include = FALSE}
 if(!"./model_output" %in% list.dirs()) dir.create("model_output")
 ```
 
-```{r}
+```{r writing JAGS output to disk, eval = FALSE}
 write.csv(samples$parameters, "model_output/param.csv", row.names = FALSE)
 write.csv(samples$proba_inf, "model_output/proba_inf.csv", row.names = FALSE)
 write.csv(samples$Gelman_diag, "model_output/Gelman_diag.csv", row.names = FALSE)
@@ -486,7 +480,7 @@ ggplot(param, aes(x = .iteration, y = Se, col = factor(.chain))) +
 
 ```{r posterior parameter density, fig.height = 4.5}
 ggplot(param, aes(x = Se, colour = "Posterior")) +
-  stat_density(geom = "line") + 
+  stat_density(geom = "line") +
   geom_function(fun = dbeta, args = list(5000, 260), aes(colour = "Prior")) +
   scale_colour_discrete(name  ="")
 ```
@@ -513,9 +507,9 @@ head(pinf)
 ```
 
 ---
-# Predicted probabilities of infection
+# Predicted probabilities of status positive
 
-- Density for the overall probability of infection
+- Density for the overall probability of status positive
 
 ```{r plotting overall predicted probabilities of infection, fig.height = 5}
 ggplot(pinf, aes(x = predicted_proba)) +
@@ -523,133 +517,133 @@ ggplot(pinf, aes(x = predicted_proba)) +
 ```
 
 ---
-# Predicted probabilities of infection
+# Predicted probabilities of status positive
 
 - Density for every herd
 
 ```{r plotting predicted probabilities of infection for each herd individually, fig.height = 5}
 ggplot(pinf, aes(x = predicted_proba, col = factor(herd_id))) +
-  geom_density() + 
+  geom_density() +
   theme(legend.position = "none")
 ```
 
 ---
-# Predicted probabilities of infection
+# Predicted probabilities of status positive
 
 - Density for specific herds
  - herd 29: negative test results only
 
 ```{r}
-sfd$test_data %>% 
+sfd$test_data %>%
   filter(herd_id == 29)
 ```
 
 ---
-# Predicted probabilities of infection
+# Predicted probabilities of status positive
 
 - Density for specific herds
  - herd 29: negative test results only
 
 ```{r plotting predicted probabilities of infection for herd 29, fig.height = 4}
-pinf %>% 
-  filter(herd_id == 29) %>% 
+pinf %>%
+  filter(herd_id == 29) %>%
   ggplot(., aes(x = predicted_proba, col = factor(herd_id))) +
   geom_density()
 ```
 
 ---
-# Predicted probabilities of infection
+# Predicted probabilities of status positive
 
 - Density for specific herds
  - herd 30: positive test results only
 
 ```{r}
-sfd$test_data %>% 
+sfd$test_data %>%
   filter(herd_id == 30)
 ```
 
 ---
-# Predicted probabilities of infection
+# Predicted probabilities of status positive
 
 - Density for specific herds
  - herd 30: positive test results only
 
 ```{r plotting predicted probabilities of infection for herd 30, fig.height = 4}
-pinf %>% 
-  filter(herd_id == 30) %>% 
+pinf %>%
+  filter(herd_id == 30) %>%
   ggplot(., aes(x = predicted_proba, col = factor(herd_id))) +
   geom_density()
 ```
 
 ---
-# Predicted probabilities of infection
+# Predicted probabilities of status positive
 
 - Density for specific herds
  - herd 68: negative and positive test results
 
 ```{r}
-sfd$test_data %>% 
+sfd$test_data %>%
   filter(herd_id == 68)
 ```
 
 ---
-# Predicted probabilities of infection
+# Predicted probabilities of status positive
 
 - Density for specific herds
  - herd 68: negative and positive test results
 
 ```{r plotting predicted probabilities of infection for herd 68, fig.height = 4}
-pinf %>% 
-  filter(herd_id == 68) %>% 
+pinf %>%
+  filter(herd_id == 68) %>%
   ggplot(., aes(x = predicted_proba, col = factor(herd_id))) +
   geom_density()
 ```
 
 ---
-# Predicted probabilities of infection
+# Predicted probabilities of status positive
 
 - Density for specific herds
  - herd 68: negative and positive test results
 
-## Explaining bi-modality:
+### Explaining bi-modality:
 - herd tested negative on month 32
 - latent status on month 32
  - on some iterations, latent status sampled as negative $\rightarrow$ predicted probability of infection on month 33 is $\tau_1$
  - on some iterations, latent status sampled as positive $\rightarrow$ predicted probability of infection on month 33 is $\tau_2$
- 
+
 ---
-# Predicted probabilities of infection
+# Predicted probabilities of status positive
 
 - Density for specific herds
  - herd 83: latest test results is positive
 
 ```{r}
-sfd$test_data %>% 
+sfd$test_data %>%
   filter(herd_id == 83)
 ```
 
 ---
-# Predicted probabilities of infection
+# Predicted probabilities of status positive
 
 - Density for specific herds
  - herd 83: latest test results is positive
 
 ```{r plotting predicted probabilities of infection for herd 83, fig.height = 4}
-pinf %>% 
-  filter(herd_id == 83) %>% 
+pinf %>%
+  filter(herd_id == 83) %>%
   ggplot(., aes(x = predicted_proba, col = factor(herd_id))) +
   geom_density()
 ```
 
 ---
-# Predicted probabilities of infection
+# Predicted probabilities of status positive
 
 - Density for specific herds
  - herds 29, 30, 68 and 83
 
 ```{r plotting predicted probabilities of infection for 4 herds, fig.height = 4}
-pinf %>% 
-  filter(herd_id %in% c(29, 30, 68, 83)) %>% 
+pinf %>%
+  filter(herd_id %in% c(29, 30, 68, 83)) %>%
   ggplot(., aes(x = predicted_proba, col = factor(herd_id))) +
   geom_density()
 ```
@@ -667,26 +661,289 @@ pinf %>%
 ---
 # Categorisation of herds into status negative / positive
 
+- test
+
 ```{r}
-hrd_prob <- herd_summary(pinf, sfd, 
-                         quantile = 0.5, cut_off = 0.5)
+hrd_prob <- herd_summary(pinf, sfd, quantile = 0.5, cut_off = 0.5)
 
 head(hrd_prob)
 ```
- 
+
+
 ---
 class: inverse, center, middle
 
-# Modelling herd level data 
+# Modelling herd level data
 # Test results and risk factors
 
 ---
-# To do
+# Risk factors of new infection
+
+- Risk factors could improve detection:
+
+ - As an addition to test results
+ - When recorded between tests
+
+--
+
+- Which risk factors to include?
+
+ - known from the literature
+ - associated to new infection in the data
+
+--
+
+- What delay between risk factors and new infection?
+ - There could be some time between exposure to a risk factor and becoming infected
+
+---
+# Risk factors of new infection
+
+- Not possible to evaluate all possible associations using the STOC free model
+ - Bayesian inference is too time consuming!
+
+--
+
+.center[<img src="./imgs/Bayesian_inference_Spongebob.png" style="width: 75%" />]
+
+.footnote[[1] https://twitter.com/ChelseaParlett/status/1296490493539487745]
+
+
+---
+# Evaluation of risk factors of new infection using surveillance data
+
+- Different functions implemented in the package to help evaluating putative associations
+
+- These functions rely on the R `glm()` function
+ - Logistic models
+ 
+
+---
+# Association number of cattle purchased - seroconversion
+
+- Here, we will estimate associations between the number of animal purcahsed and seroconversion from the available data
+
+--
+
+- In the case of BVD
+ - Possible delay between cattle purchase and the birth of persistently infected calves
+ - What is the best time delay to use?
+
+- This is investigated using the `intro` dataset included in the package
+
+---
+# The intro dataset
+
+- Included in the `STOCfree` package
+
+- Same herds as in the `herdBTM` dataset
+
+- Number of cattle introduced per herd
+
+```{r intro dataset}
+head(intro)
+```
+
+---
+# The logit_nwinf_lagged() function
+
+- Probability of becoming positive between consecutive tests modelled as a function of a risk factor using logistic regression
+
+- Considers all sequences of 2 consecutive tests where the $1^{st}$ test is negative
+
+- Within a given range, all possible intervals between exposure to risk factor and outcome modelled
+
+- AICs of the different models are reported for the identification of the best interval
+
+---
+# Association number of cattle purchased - seroconversion
+
+- Natural logarithm of number of cattle used (better fit)
+
+```{r association cattle introductions and seroconversion}
+intro$ln_nAnim <- log(intro$nAnim)
+
+nAnim_lagged <- logit_nwinf_lagged(
+  sf_data = sfd,
+  rf_data = intro,
+  rf_date_col = "dateIntr",
+  rf_col = "ln_nAnim",
+  time_of_inf = "mid",
+  lag1 = 0,
+  lag2 = 24)
+
+head(nAnim_lagged)
+```
+
+
+---
+# Association number of cattle purchased - seroconversion
+
+- Plot of the results: best interval = 8 to 8
+
+```{r, plot of associations cattle introduced and seroconversion, fig.height = 4}
+ggplot(data = nAnim_lagged, aes(x = lag2, y = lag1, fill = AIC)) +
+  geom_tile() +
+  xlab("Time Lag 2 (months)") + ylab("Time Lag 1 (months)") +
+  scale_fill_gradient(low = "red", high = "yellow", aesthetics = "fill") +
+  ggtitle("Number of animals purchased")
+```
+
+---
+# Association local serporevalence - seroconversion
+
+- Same idea as above
+ - Maximum of the local prevalence over the considered interval
+
+```{r association local seroprevalence seroconversion, warning = FALSE}
+lsprev <- logit_nwinf_lagged(
+  sf_data = sfd,
+  rf_data = bvd,
+  rf_date_col = "DateOfTest",
+  rf_col = "LocalSeroPrev",
+  time_of_inf = "mid",  lag1 = 0, lag2 = 24,
+  FUN = max)
+```
+
+---
+# Association local serporevalence - seroconversion
+
+- Plot of the results
+
+```{r plot association local seroprevalence seroconversion, echo= FALSE, fig.height = 4}
+ggplot(data = lsprev, aes(x = lag2, y = lag1, fill = AIC)) +
+  geom_tile() +
+  xlab("Time Lag 2 (months)") +
+  ylab("Time Lag 1 (months)") +
+  scale_fill_gradient(low = "red", high = "yellow", aesthetics = "fill") +
+  ggtitle("Local seroprevalence")
+```
+
+- Best interval: 5 to 5
+
+
+---
+# Multivariate logistic model
+
+- Objective: evaluate associations between risk factors identified at the previous step and probability of becoming status positive
+
+- Creation of the outcome dataset
+
+```{r}
+nwinf <- make_nwinf_data(sfd,
+                         time_of_inf = "mid")
+```
+
+
+---
+# Multivariate logistic model
+
+- Structure of the object
+
+```{r}
+str(nwinf)
+```
+
+---
+# Multivariate logistic model
+
+- Adding lagged risk factors
+
+```{r}
+nwinf <- add_risk_factor(nwinf,
+                         intro,
+                         rf_col = "ln_nAnim",
+                         rf_date_col = "dateIntr",
+                         lag1 = 8,
+                         lag2 = 8)
+
+nwinf <- add_risk_factor(nwinf,
+                         bvd,
+                         rf_col = "LocalSeroPrev",
+                         rf_date_col = "DateOfTest",
+                         lag1 = 5,
+                         lag2 = 5)
+```
+
+---
+# Multivariate logistic model
+
+- Structure of the object
+
+```{r}
+str(nwinf)
+```
+
+---
+# Multivariate logistic model
+
+- Model
+
+```{r, warning = FALSE}
+modl <- logit_nwinf(nwinf,
+                    risk_factors = c("ln_nAnim_8_8", 
+                                     "LocalSeroPrev_5_5"))
+```
+
+---
+# Multivariate logistic model
+
+- Model results
+
+```{r}
+summary(modl)
+```
+
+---
+# Including risk factors in the STOCfree model
+
+- ln(number animals purchased) is added to the model
+
+- This is done by updating the STOCfree_ data object
+
+```{r risk factor added to the STOCfree_data object}
+sfd <- sf_add_risk_factor(
+  sfd = sfd,
+  risk_factor_data = intro,
+  risk_herd_col = "Farm",
+  risk_date_col = "dateIntr",
+  risk_factor_col = "ln_nAnim",
+  risk_factor_type = "continuous",
+  lag1 = 8,
+  lag2 = 8,
+  FUN = sum)
+```
+
+---
+# Including risk factors in the STOCfree model
+
+- Consequence:
+  - $\tau_1$ is not a model parameter anymore
+
+```{r tau1 discarded when risk factor included to STOCfree_data}
+show_inf_dyn(sfd)
+```
+
+---
+# Including risk factors in the STOCfree model
+
+- Consequences:
+ - logistic regression for $\tau_{1t}$
+ - need to specify prior distributions for the logistic regression
+ 
+```{r prior distribution for logistic regression}
+show_rf(sfd)
+```
+
+---
+# Prior distributions for the logistic regression
+
+
 
 ---
 class: inverse, center, middle
 
-# Modelling animal level data 
+# Modelling animal level data
 
 ---
 # To do
@@ -695,4 +952,6 @@ class: inverse, center, middle
 background-image: url(./imgs/STOCfree_meeting_2020.png)
 background-size: contain
 
-
+---
+background-image: url(./imgs/last_slide.png)
+background-size: contain

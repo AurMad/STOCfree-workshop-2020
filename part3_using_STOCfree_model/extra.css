@@ -1,0 +1,37 @@
+.title-slide {
+  background-image: url(./imgs/title_page_bg.png);
+  background-size: contain;
+  color: black;
+  text-shadow: 0 0 0;
+
+}
+
+
+.title-slide h1 {
+   font-size: 40px;
+   color: black;
+}
+.title-slide h2 {
+   font-size: 30px;
+   color: black;
+}
+.title-slide h3 {
+   font-size: 25px;
+   color: black;
+}
+
+.remark-slide-content {
+    font-size: 25px;
+    padding: 1em 4em 1em 4em;
+}
+.remark-slide-content h1{
+font-size: 40px;
+}
+
+.remark-slide-content h2{
+font-size: 35px;
+}
+
+.remark-slide-content h3{
+font-size: 30px;
+}
