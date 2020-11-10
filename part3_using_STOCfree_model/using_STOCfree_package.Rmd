@@ -663,7 +663,7 @@ pinf %>%
 
 - test
 
-```{r}
+```{r summary of distributions for predicted probabilities of infection}
 hrd_prob <- herd_summary(pinf, sfd, quantile = 0.5, cut_off = 0.5)
 
 head(hrd_prob)
@@ -761,7 +761,7 @@ head(intro)
 - Natural logarithm of number of cattle used (better fit)
 
 ```{r association cattle introductions and seroconversion}
-intro$ln_nAnim <- log(intro$nAnim)
+intro$ln_nAnim <- log(intro$nAnim + 1)
 
 nAnim_lagged <- logit_nwinf_lagged(
   sf_data = sfd,
@@ -829,7 +829,7 @@ ggplot(data = lsprev, aes(x = lag2, y = lag1, fill = AIC)) +
 
 - Creation of the outcome dataset
 
-```{r}
+```{r make nwinf}
 nwinf <- make_nwinf_data(sfd,
                          time_of_inf = "mid")
 ```
@@ -840,7 +840,7 @@ nwinf <- make_nwinf_data(sfd,
 
 - Structure of the object
 
-```{r}
+```{r structure of nwinf}
 str(nwinf)
 ```
 
@@ -849,7 +849,7 @@ str(nwinf)
 
 - Adding lagged risk factors
 
-```{r}
+```{r add risk factors to STOCfree data}
 nwinf <- add_risk_factor(nwinf,
                          intro,
                          rf_col = "ln_nAnim",
@@ -897,7 +897,7 @@ summary(modl)
 ---
 # Including risk factors in the STOCfree model
 
-- ln(number animals purchased) is added to the model
+- ln(number animals purchased + 1) is added to the model
 
 - This is done by updating the STOCfree_ data object
 
@@ -938,15 +938,84 @@ show_rf(sfd)
 ---
 # Prior distributions for the logistic regression
 
+- Logistic regression
 
+$$ln(\frac{\tau_{1t}}{1-\tau_{1t}}) = \theta_1 + \theta_2 x_t$$
+
+- Regression intercept 
+ - log-odds of infection in the reference modality
+ - here, when the number of purchased animals is 0
+ 
+- Coefficients
+ - increase in log-odds of new infection per unit of increase in the variable
+ - here, increases per unit increase in ln(numeber animals + 1)
 
 ---
-class: inverse, center, middle
+# Prior distributions for the logistic regression
 
-# Modelling animal level data
+- Logistic regression
+
+$$ln(\frac{\tau_{1t}}{1-\tau_{1t}}) = \theta_1 + \theta_2 x_t$$
+
+- Prior distributions
+
+$$\theta_1 \sim \mathcal{N}(\mu_1, \sigma^2_1)$$
+
+$$\theta_2 \sim \mathcal{N}(\mu_2, \sigma^2_2)$$
 
 ---
-# To do
+# Prior distributions for the logistic regression
+
+- What are reasonable values for the $\theta$s?
+
+```{r, echo = FALSE, fig.height = 5}
+curve(invlogit(x),
+      from = -5, to = 5,
+      xlab = "logit(p)",
+      ylab = "p",
+      lwd = 2)
+grid()
+```
+
+---
+# Setting the prior distributions for the risk factors of new infection
+
+- Intercept
+ - mean set to -3 which corresponds to a probability of `r round(STOCfree::invlogit(-3), 3)` for herds introducing no animal
+ 
+- ln(number animals)+ 1
+ - mean set to 0: assumes an absence of effect. 
+ - Posterior driven by the data
+
+```{r set prior distributions risk factors}
+sfd <- set_priors_rf(sfd,
+                   risk_factor = "Intercept",
+                   mean = -3, sd = 1)
+
+
+sfd <- set_priors_rf(sfd,
+                   risk_factor = "ln_nAnim_8_8",
+                   mean = 0, sd = 2)
+```
+
+---
+# Setting the prior distributions for the risk factors of new infection
+
+- The `STOCfree_data` object has been updated
+
+```{r display prior distributions risk factors}
+show_rf(sfd)
+```
+
+---
+# Setting the prior distributions for the risk factors of new infection
+
+- The prior distributions can be plotted
+
+```{r plot prior distributions risk factors, fig.height= 5}
+plot_priors_rf(sfd)
+```
+
 
 ---
 background-image: url(./imgs/STOCfree_meeting_2020.png)

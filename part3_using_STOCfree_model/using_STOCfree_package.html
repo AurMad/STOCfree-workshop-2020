@@ -1028,7 +1028,7 @@ head(intro)
 
 
 ```r
-intro$ln_nAnim &lt;- log(intro$nAnim)
+intro$ln_nAnim &lt;- log(intro$nAnim + 1)
 
 nAnim_lagged &lt;- logit_nwinf_lagged(
   sf_data = sfd,
@@ -1044,12 +1044,12 @@ head(nAnim_lagged)
 
 ```
 ##   lag1 lag2 l      AIC
-## 1    0    0 0 281.9453
-## 2    0    1 1 282.6158
-## 3    1    1 0 284.6146
-## 4    0    2 2 283.9612
-## 5    1    2 1 284.6218
-## 6    2    2 0 284.5898
+## 1    0    0 0 282.1230
+## 2    0    1 1 283.0213
+## 3    1    1 0 284.6300
+## 4    0    2 2 283.5256
+## 5    1    2 1 284.5612
+## 6    2    2 0 284.5422
 ```
 
 
@@ -1215,21 +1215,21 @@ summary(modl)
 ## 
 ## Deviance Residuals: 
 ##     Min       1Q   Median       3Q      Max  
-## -1.4231  -0.7035  -0.7035  -0.7035   1.7423  
+## -1.3037  -0.7045  -0.7045  -0.7045   1.7408  
 ## 
 ## Coefficients:
 ##                     Estimate Std. Error z value Pr(&gt;|z|)    
-## (Intercept)          -1.2703     0.1584  -8.020 1.06e-15 ***
-## ln_nAnim_8_8          0.6337     0.2927   2.165   0.0304 *  
-## LocalSeroPrev_5_5   199.4334 11706.6283   0.017   0.9864    
+## (Intercept)          -1.2671     0.1598  -7.930 2.18e-15 ***
+## ln_nAnim_8_8          0.4679     0.2508   1.866   0.0621 .  
+## LocalSeroPrev_5_5   199.6583 11831.5751   0.017   0.9865    
 ## ---
 ## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
 ## 
 ## (Dispersion parameter for binomial family taken to be 1)
 ## 
 ##     Null deviance: 280.63  on 250  degrees of freedom
-## Residual deviance: 264.66  on 248  degrees of freedom
-## AIC: 270.66
+## Residual deviance: 265.93  on 248  degrees of freedom
+## AIC: 271.93
 ## 
 ## Number of Fisher Scoring iterations: 16
 ```
@@ -1237,7 +1237,7 @@ summary(modl)
 ---
 # Including risk factors in the STOCfree model
 
-- ln(number animals purchased) is added to the model
+- ln(number animals purchased + 1) is added to the model
 
 - This is done by updating the STOCfree_ data object
 
@@ -1270,6 +1270,7 @@ show_inf_dyn(sfd)
 ##  pi1_a  pi1_b tau2_a tau2_b 
 ##    1.0    1.0   10.0    1.5
 ```
+
 ---
 # Including risk factors in the STOCfree model
 
@@ -1288,14 +1289,91 @@ show_rf(sfd)
 ## 2 ln_nAnim_8_8 continuous       NA
 ```
 
+---
+# Prior distributions for the logistic regression
+
+- Logistic regression
+
+`$$ln(\frac{\tau_{1t}}{1-\tau_{1t}}) = \theta_1 + \theta_2 x_t$$`
+
+- Regression intercept 
+ - log-odds of infection in the reference modality
+ - here, when the number of purchased animals is 0
  
----
-class: inverse, center, middle
+- Coefficients
+ - increase in log-odds of new infection per unit of increase in the variable
+ - here, increases per unit increase in ln(numeber animals + 1)
 
-# Modelling animal level data
+---
+# Prior distributions for the logistic regression
+
+- Logistic regression
+
+`$$ln(\frac{\tau_{1t}}{1-\tau_{1t}}) = \theta_1 + \theta_2 x_t$$`
+
+- Prior distributions
+
+`$$\theta_1 \sim \mathcal{N}(\mu_1, \sigma^2_1)$$`
+
+`$$\theta_2 \sim \mathcal{N}(\mu_2, \sigma^2_2)$$`
 
 ---
-# To do
+# Prior distributions for the logistic regression
+
+- What are reasonable values for the `\(\theta\)`s?
+
+![](using_STOCfree_package_files/figure-html/unnamed-chunk-16-1.png)&lt;!-- --&gt;
+
+---
+# Setting the prior distributions for the risk factors of new infection
+
+- Intercept
+ - mean set to -3 which corresponds to a probability of 0.047 for herds introducing no animal
+ 
+- ln(number animals)+ 1
+ - mean set to 0: assumes an absence of effect. 
+ - Posterior driven by the data
+
+
+```r
+sfd &lt;- set_priors_rf(sfd,
+                   risk_factor = "Intercept",
+                   mean = -3, sd = 1)
+
+
+sfd &lt;- set_priors_rf(sfd,
+                   risk_factor = "ln_nAnim_8_8",
+                   mean = 0, sd = 2)
+```
+
+---
+# Setting the prior distributions for the risk factors of new infection
+
+- The `STOCfree_data` object has been updated
+
+
+```r
+show_rf(sfd)
+```
+
+```
+##    risk_factor       type modality mean_prior sd_prior
+## 1    Intercept  intercept       NA         -3        1
+## 2 ln_nAnim_8_8 continuous       NA          0        2
+```
+
+---
+# Setting the prior distributions for the risk factors of new infection
+
+- The prior distributions can be plotted
+
+
+```r
+plot_priors_rf(sfd)
+```
+
+![](using_STOCfree_package_files/figure-html/plot prior distributions risk factors-1.png)&lt;!-- --&gt;
+
 
 ---
 background-image: url(./imgs/STOCfree_meeting_2020.png)
