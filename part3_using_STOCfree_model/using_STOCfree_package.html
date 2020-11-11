@@ -401,8 +401,8 @@ betadistapp::shiny_beta()
 sfd &lt;- set_priors_tests(sfd,
                  Se_a = 5000,
                  Se_b = 260,
-                 Sp_a = 20,
-                 Sp_b = 2)
+                 Sp_a = 9000,
+                 Sp_b = 1000)
 ```
 
 ---
@@ -505,6 +505,18 @@ compiled_model &lt;- compile_JAGS(sfd,
                                keep_model_file = TRUE)
 ```
 
+```
+## Compiling model graph
+##    Resolving undeclared variables
+##    Allocating nodes
+## Graph information:
+##    Observed stochastic nodes: 580
+##    Unobserved stochastic nodes: 3404
+##    Total graph size: 22636
+## 
+## Initializing model
+```
+
 ---
 # Model compilation
 
@@ -528,6 +540,14 @@ samples &lt;- sample_model(compiled_model,
                         n_burnin = 5000,
                         n_iter = 5000,
                         n_thin = 20)
+```
+
+```
+## Burnin (5000 iterations)
+```
+
+```
+## Sampling (5000 iterations)
 ```
 
 ---
@@ -1365,6 +1385,42 @@ show_rf(sfd)
 ---
 # Setting the prior distributions for the risk factors of new infection
 
+- The `STOCfree_data` object has been updated
+
+
+```r
+sfd$risk_factor_data[c(1:10, 30:40),]
+```
+
+```
+##    status_id herd_id month_id intercept ln_nAnim_8_8
+## 1          1       1        1         1            0
+## 2          2       1        2         1            0
+## 3          3       1        3         1            0
+## 4          4       1        4         1            0
+## 5          5       1        5         1            0
+## 6          6       1        6         1            0
+## 7          7       1        7         1            0
+## 8          8       1        8         1            0
+## 9          9       1        9         1            0
+## 10        10       1       10         1            0
+## 30        30       1       30         1            0
+## 31        31       1       31         1            0
+## 32        32       1       32         1            0
+## 33        33       1       33         1            0
+## 34        34       2        1         1            0
+## 35        35       2        2         1            0
+## 36        36       2        3         1            0
+## 37        37       2        4         1            0
+## 38        38       2        5         1            0
+## 39        39       2        6         1            0
+## 40        40       2        7         1            0
+```
+
+
+---
+# Setting the prior distributions for the risk factors of new infection
+
 - The prior distributions can be plotted
 
 
@@ -1374,10 +1430,102 @@ plot_priors_rf(sfd)
 
 ![](using_STOCfree_package_files/figure-html/plot prior distributions risk factors-1.png)&lt;!-- --&gt;
 
+---
+# Model compilation
+
+- Same as previously
+
+
+```r
+compiled_model1 &lt;- compile_JAGS(sfd,
+                               n_chains = 4,
+                               keep_model_file = TRUE)
+```
+
+```
+## Compiling model graph
+##    Resolving undeclared variables
+##    Allocating nodes
+## Graph information:
+##    Observed stochastic nodes: 580
+##    Unobserved stochastic nodes: 3405
+##    Total graph size: 32503
+## 
+## Initializing model
+```
 
 ---
-background-image: url(./imgs/STOCfree_meeting_2020.png)
-background-size: contain
+# Model sampling
+
+- Same as previously
+
+
+```r
+samples &lt;- sample_model(compiled_model1,
+                        n_burnin = 5000,
+                        n_iter = 5000,
+                        n_thin = 20)
+```
+
+```
+## Burnin (5000 iterations)
+```
+
+```
+## Sampling (5000 iterations)
+```
+
+---
+# Model results saved
+
+- Same as previously
+
+
+```r
+write.csv(samples$parameters, "model_output/rf_param.csv", row.names = FALSE)
+write.csv(samples$proba_inf, "model_output/rf_proba_inf.csv", row.names = FALSE)
+write.csv(samples$Gelman_diag, "model_output/rf_Gelman_diag.csv", row.names = FALSE)
+```
+
+---
+# Model parameters
+
+
+```r
+param1 &lt;- as_tibble(read.csv("model_output/rf_param.csv"))
+
+param_summary(x = param1)
+```
+
+```
+##   parameter    50 %   2.5 %  97.5 %
+## 1        Se  0.9498  0.9443  0.9561
+## 2        Sp  0.8926  0.8315  0.9446
+## 3      tau2  0.9824  0.9692  0.9926
+## 4   theta.1 -4.0666 -4.7407 -3.4698
+## 5   theta.2  0.3489 -3.1353  1.0728
+```
+
+---
+# Predicted probabilities of infection
+
+
+```r
+pinf1 &lt;- as_tibble(read.csv("model_output/rf_proba_inf.csv"))
+
+ggplot(pinf1, aes(x = predicted_proba)) +
+  geom_density()
+```
+
+![](using_STOCfree_package_files/figure-html/unnamed-chunk-17-1.png)&lt;!-- --&gt;
+
+---
+class: inverse, center, middle
+
+# Questions ?
+# Remarks ?
+
+
 
 ---
 background-image: url(./imgs/last_slide.png)

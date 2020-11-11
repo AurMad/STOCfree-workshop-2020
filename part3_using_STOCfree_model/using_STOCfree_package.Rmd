@@ -305,8 +305,8 @@ betadistapp::shiny_beta()
 sfd <- set_priors_tests(sfd,
                  Se_a = 5000,
                  Se_b = 260,
-                 Sp_a = 20,
-                 Sp_b = 2)
+                 Sp_a = 9000,
+                 Sp_b = 1000)
 ```
 
 ---
@@ -377,7 +377,7 @@ plot_priors_inf_dyn(sfd)
 
 - Using the `compile_JAGS()` function:
 
-```{r JAGS model compilation, eval = FALSE}
+```{r JAGS model compilation, eval = TRUE}
 compiled_model <- compile_JAGS(sfd,
                                n_chains = 4,
                                keep_model_file = TRUE)
@@ -400,7 +400,7 @@ compiled_model <- compile_JAGS(sfd,
  - samples from the posterior distributions of the model parameters
  - distributions of predicted probabilities of infection for each herd in the data
 
-```{r sampling from JAGS model, eval = FALSE}
+```{r sampling from JAGS model, eval = TRUE}
 samples <- sample_model(compiled_model,
                         n_burnin = 5000,
                         n_iter = 5000,
@@ -1010,16 +1010,82 @@ show_rf(sfd)
 ---
 # Setting the prior distributions for the risk factors of new infection
 
+- The `STOCfree_data` object has been updated
+
+```{r display risk factor data}
+sfd$risk_factor_data[c(1:10, 30:40),]
+```
+
+
+---
+# Setting the prior distributions for the risk factors of new infection
+
 - The prior distributions can be plotted
 
 ```{r plot prior distributions risk factors, fig.height= 5}
 plot_priors_rf(sfd)
 ```
 
+---
+# Model compilation
+
+- Same as previously
+
+```{r compiling JAGS model with risk factors}
+compiled_model1 <- compile_JAGS(sfd,
+                               n_chains = 4,
+                               keep_model_file = TRUE)
+```
 
 ---
-background-image: url(./imgs/STOCfree_meeting_2020.png)
-background-size: contain
+# Model sampling
+
+- Same as previously
+
+```{r sampling from JAGS model with risk factors}
+samples <- sample_model(compiled_model1,
+                        n_burnin = 5000,
+                        n_iter = 5000,
+                        n_thin = 20)
+```
+
+---
+# Model results saved
+
+- Same as previously
+
+```{r saving results of model with risk factors}
+write.csv(samples$parameters, "model_output/rf_param.csv", row.names = FALSE)
+write.csv(samples$proba_inf, "model_output/rf_proba_inf.csv", row.names = FALSE)
+write.csv(samples$Gelman_diag, "model_output/rf_Gelman_diag.csv", row.names = FALSE)
+```
+
+---
+# Model parameters
+
+```{r parameters of model with risk factors}
+param1 <- as_tibble(read.csv("model_output/rf_param.csv"))
+
+param_summary(x = param1)
+```
+
+---
+# Predicted probabilities of infection
+
+```{r, fig.height = 5}
+pinf1 <- as_tibble(read.csv("model_output/rf_proba_inf.csv"))
+
+ggplot(pinf1, aes(x = predicted_proba)) +
+  geom_density()
+```
+
+---
+class: inverse, center, middle
+
+# Questions ?
+# Remarks ?
+
+
 
 ---
 background-image: url(./imgs/last_slide.png)
